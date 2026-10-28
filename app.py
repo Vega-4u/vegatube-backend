@@ -10,7 +10,11 @@ from mutagen.id3 import ID3, APIC, USLT
 
 app = FastAPI()
 
-STOREFRONTS = ["in", "us", "gb", "pk", "ae", "sa", "ca", "au"]
+STOREFRONTS = ["in", "us", "gb", "pk", "ae", "sa"]
+
+def extract_clean_url(text: str) -> str:
+    match = re.search(r'(https?://[^\s]+)', text)
+    return match.group(0) if match else text
 
 def clean_query(title: str) -> str:
     patterns = [
@@ -55,7 +59,8 @@ def fetch_lyrics(title: str, artist: str) -> str:
 
 @app.get("/download")
 async def download_song(url: str):
-    if not url:
+    real_url = extract_clean_url(url)
+    if not real_url:
         raise HTTPException(status_code=400, detail="Missing YouTube URL")
 
     out_tmpl = "/tmp/%(id)s.%(ext)s"
@@ -78,7 +83,7 @@ async def download_song(url: str):
 
     try:
         with YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
+            info = ydl.extract_info(real_url, download=True)
             video_id = info.get('id')
             raw_title = info.get('title', 'Song')
             yt_uploader = info.get('uploader', '')
@@ -106,7 +111,6 @@ async def download_song(url: str):
             year = ""
             artwork_url = yt_thumbnail
 
-        # Write Basic Tags
         audio = EasyID3(mp3_path)
         audio['title'] = song_title
         audio['artist'] = artist_name
@@ -116,7 +120,6 @@ async def download_song(url: str):
             audio['date'] = year
         audio.save()
 
-        # Cover Art & Lyrics
         id3 = ID3(mp3_path)
         if artwork_url:
             try:
