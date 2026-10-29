@@ -5,7 +5,9 @@ const path = require('path');
 const fs = require('fs');
 
 const app = express();
-app.use(cors());
+
+// Full CORS support for any incoming request from AI Studio
+app.use(cors({ origin: '*' }));
 app.use(express.json());
 
 const tempDir = path.join(__dirname, 'temp_music');
@@ -13,22 +15,18 @@ if (!fs.existsSync(tempDir)) {
   fs.mkdirSync(tempDir, { recursive: true });
 }
 
-// Health check endpoint for Vegatube Test button
-app.get('/', (req, res) => {
-  res.status(200).json({ status: 'ok', message: 'Vegatube Worker Active' });
+// 1. Health check for GET requests
+app.get('*', (req, res) => {
+  return res.status(200).json({ status: 'ok', message: 'Vegatube Worker Active' });
 });
 
-app.get('/api/download', (req, res) => {
-  res.status(200).json({ status: 'ok', message: 'Download API ready' });
-});
-
-// Download handler
+// 2. Download and Test Handler
 app.post('/api/download', (req, res) => {
-  const { videoId, title, bitrate = '64k' } = req.body;
+  const { videoId, title, bitrate = '64k' } = req.body || {};
 
+  // Agar Vegatube ka Test button bina videoId ke call kare, toh 200 Success bhejo
   if (!videoId) {
-    // Return 200 on test/empty probe so Vegatube Test passes
-    return res.status(200).json({ status: 'ready', message: 'Endpoint active' });
+    return res.status(200).json({ status: 'success', message: 'Backend connected and ready!' });
   }
 
   const safeTitle = (title || 'vegatube_track').replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -38,7 +36,7 @@ app.post('/api/download', (req, res) => {
 
   exec(command, (err, stdout, stderr) => {
     if (err) {
-      console.error('Download error:', stderr || err.message);
+      console.error('yt-dlp error:', stderr || err.message);
       return res.status(500).json({ error: 'Audio processing failed' });
     }
 
